@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CloudPulse — Cloud Resource Prediction</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head><body>
+<div class="layout">
+<aside class="sidebar"><div class="brand"><span class="brand-icon">C</span><span>cloud<span class="brand-light">pulse</span></span></div>
+<div class="side-label">WORKSPACE</div><a class="nav active" href="#overview"><span>▦</span> Overview</a><a class="nav" href="#analytics"><span>⌁</span> Analytics</a><a class="nav" href="#readings"><span>▤</span> Resource readings</a><a class="nav" href="#model"><span>◈</span> ML model</a>
+<div class="side-bottom"><div class="online-dot"></div><div><b>Local research instance</b><small>Flask · scikit-learn</small></div></div></aside>
+<main class="main">
+<header class="topbar"><div><div class="kicker">CLOUD INTELLIGENCE PLATFORM</div><h1>Resource overview</h1><p>Predict resource demand before it becomes a bottleneck.</p></div><div class="top-actions"><a class="btn ghost" href="/download">↓ Export CSV</a><button class="btn primary" id="trainBtn">↻ Train model</button></div></header>
+{% with messages = get_flashed_messages() %}{% if messages %}<div class="flash">{% for message in messages %}{{ message }}{% endfor %}</div>{% endif %}{% endwith %}
+<section class="metrics" id="overview">
+<div class="metric-card"><div class="metric-top">AVG CPU UTILIZATION <span class="metric-symbol blue">⌁</span></div><div class="metric-value">{{ data.metrics.cpu }}<small>%</small></div><div class="metric-foot">Across {{ data.metrics.records }} observations</div></div>
+<div class="metric-card"><div class="metric-top">AVG MEMORY USAGE <span class="metric-symbol violet">▥</span></div><div class="metric-value">{{ data.metrics.memory }}<small>%</small></div><div class="metric-foot">Memory utilization average</div></div>
+<div class="metric-card"><div class="metric-top">AVG NETWORK <span class="metric-symbol teal">⇅</span></div><div class="metric-value">{{ data.metrics.network }}<small> Mbps</small></div><div class="metric-foot">Inbound throughput average</div></div>
+<div class="metric-card"><div class="metric-top">DATASET SIZE <span class="metric-symbol amber">▤</span></div><div class="metric-value">{{ data.metrics.records }}<small> rows</small></div><div class="metric-foot">Available training observations</div></div>
+</section>
+<section class="content-grid" id="analytics">
+<div class="panel chart-panel"><div class="panel-head"><div><h2>Resource utilization</h2><p>CPU and memory · latest 24 observations</p></div><span class="live-tag">● DATA VIEW</span></div><div class="chart-area"><canvas id="usageChart"></canvas></div><div class="chart-legend"><span><i class="legend-dot cpu-dot"></i>CPU utilization</span><span><i class="legend-dot mem-dot"></i>Memory usage</span></div></div>
+<div class="panel forecast-panel"><div class="panel-head"><div><h2>Next interval prediction</h2><p>Forecast from trained model</p></div><span class="forecast-icon">✦</span></div>
+{% if data.forecast %}<div class="forecast-main"><div class="forecast-label">PREDICTED CPU</div><div class="forecast-number">{{ data.forecast.cpu }}<small>%</small></div><div class="progress"><span style="width:{{ data.forecast.cpu }}%"></span></div></div>
+<div class="forecast-stats"><div><span>Predicted memory</span><b>{{ data.forecast.memory }}%</b></div><div><span>Forecast timestamp</span><b>{{ data.forecast.forecast_time }}</b></div></div>
+<div class="risk-row"><span>Capacity assessment</span><span class="risk {{ data.forecast.risk|lower }}">{{ data.forecast.risk }} RISK</span></div><div class="advice">{{ data.forecast.advice }}</div>
+{% else %}<div class="empty">Train the model to generate a forecast.</div>{% endif %}
+</div></section>
+<section class="lower-grid">
+<div class="panel" id="readings"><div class="panel-head"><div><h2>Recent resource readings</h2><p>Latest 12 records from the active dataset</p></div><span class="count-tag">{{ data.metrics.records }} total</span></div>
+<div class="table-wrap"><table><thead><tr><th>TIMESTAMP</th><th>CPU</th><th>MEMORY</th><th>NETWORK</th><th>DISK I/O</th><th>WORKLOADS</th></tr></thead><tbody>
+{% for r in data.recent %}<tr><td>{{ r.timestamp }}</td><td>{{ "%.1f"|format(r.cpu) }}%</td><td>{{ "%.1f"|format(r.memory) }}%</td><td>{{ "%.0f"|format(r.network) }} Mbps</td><td>{{ "%.1f"|format(r.disk) }}</td><td>{{ "%.0f"|format(r.workloads) }}</td></tr>{% endfor %}
+</tbody></table></div></div>
+<div class="panel" id="model"><div class="panel-head"><div><h2>Model & data controls</h2><p>Train, upload, and test the prediction model</p></div></div>
+<div class="model-score"><div><span>TEST R² SCORE</span><b id="r2Value">{% if data.model %}{{ "%.3f"|format(data.model.r2) }}{% else %}—{% endif %}</b></div><div><span>TEST MAE</span><b id="maeValue">{% if data.model %}{{ data.model.mae }}{% else %}—{% endif %}</b></div><div><span>TEST RMSE</span><b id="rmseValue">{% if data.model %}{{ data.model.rmse }}{% else %}—{% endif %}</b></div></div>
+<div class="upload-box"><form action="/api/upload" method="post" enctype="multipart/form-data"><label for="csvFile">Upload your resource dataset (.csv)</label><input type="file" id="csvFile" name="file" accept=".csv" required><button class="btn secondary" type="submit">Upload dataset</button></form></div>
+<div class="control-links"><a href="/sample">↓ Download sample CSV</a><button id="resetBtn" class="text-button">Reset demo data</button></div>
+<div class="model-note">Required CSV columns: <code>timestamp, cpu, memory, network, disk, workloads</code>. CPU and memory values must be percentages from 0–100.</div>
+</div></section>
+<section class="panel add-panel"><div class="panel-head"><div><h2>Add a resource observation</h2><p>Enter a new reading to append it to your dataset</p></div><span class="live-tag">MANUAL INPUT</span></div>
+<form id="readingForm" class="reading-form">
+<div class="input-group"><label>CPU usage (%)</label><input type="number" id="cpu" min="0" max="100" value="58" required></div>
+<div class="input-group"><label>Memory usage (%)</label><input type="number" id="memory" min="0" max="100" value="64" required></div>
+<div class="input-group"><label>Network (Mbps)</label><input type="number" id="network" min="0" value="320" required></div>
+<div class="input-group"><label>Disk I/O (MB/s)</label><input type="number" id="disk" min="0" value="45" required></div>
+<div class="input-group"><label>Active workloads</label><input type="number" id="workloads" min="0" value="120" required></div>
+<button class="btn primary submit-reading" type="submit">＋ Save observation</button></form><div id="notice" class="notice"></div></section>
+<footer>CloudPulse Research Prototype <span>Lightweight ML · Random Forest Regression · Flask</span></footer>
+</main></div>
+<script>
+const chartData={{ data.chart|tojson }};
+const ctx=document.getElementById('usageChart');
+if(window.Chart){new Chart(ctx,{type:'line',data:{labels:chartData.labels,datasets:[{label:'CPU',data:chartData.cpu,borderColor:'#69a5ff',backgroundColor:'rgba(105,165,255,.10)',fill:true,tension:.35,pointRadius:0,borderWidth:2.5},{label:'Memory',data:chartData.memory,borderColor:'#b49aff',backgroundColor:'rgba(180,154,255,.05)',fill:false,tension:.35,pointRadius:0,borderWidth:2.5}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false}},interaction:{mode:'index',intersect:false},scales:{x:{grid:{display:false},ticks:{color:'#7f91ad',maxTicksLimit:8}},y:{min:0,max:100,grid:{color:'rgba(143,160,188,.12)'},ticks:{color:'#7f91ad',callback:v=>v+'%'}}}}})}
+const notice=document.getElementById('notice');
+document.getElementById('trainBtn').addEventListener('click',async e=>{let b=e.currentTarget;b.disabled=true;b.textContent='Training…';try{let r=await fetch('/api/train',{method:'POST'});let j=await r.json();if(!j.ok)throw Error(j.error);document.getElementById('r2Value').textContent=j.metrics.r2.toFixed(3);document.getElementById('maeValue').textContent=j.metrics.mae;document.getElementById('rmseValue').textContent=j.metrics.rmse;notice.textContent='Model trained successfully. Reload the page to see the updated forecast.';notice.className='notice good';}catch(err){notice.textContent=err.message;notice.className='notice bad'}finally{b.disabled=false;b.textContent='↻ Train model'}});
+document.getElementById('readingForm').addEventListener('submit',async e=>{e.preventDefault();let payload={timestamp:new Date().toISOString(),cpu:+document.getElementById('cpu').value,memory:+document.getElementById('memory').value,network:+document.getElementById('network').value,disk:+document.getElementById('disk').value,workloads:+document.getElementById('workloads').value};try{let r=await fetch('/api/readings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});let j=await r.json();if(!j.ok)throw Error(j.error);notice.textContent=j.message;notice.className='notice good';setTimeout(()=>location.reload(),800)}catch(err){notice.textContent=err.message;notice.className='notice bad'}});
+document.getElementById('resetBtn').addEventListener('click',async()=>{if(!confirm('Replace the current dataset with generated demo data?'))return;let r=await fetch('/api/reset',{method:'POST'});let j=await r.json();if(j.ok)location.reload()});
+</script></body></html>
